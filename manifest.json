@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "视频观看时间管家",
+  "version": "1.4.0",
+  "description": "按观看时长提醒休息，尽量在一集结尾或开头停；休息时长按比例调整，遮罩优酷、爱奇艺、腾讯视频所有页面并倒计时，结束后按任意键继续。每天达到上限后当天不能再看。",
+  "permissions": ["storage", "alarms"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youku.com/*", "*://*.iqiyi.com/*", "*://v.qq.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "action": {
+    "default_title": "视频观看时间管家",
+    "default_popup": "options.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  }
+}
