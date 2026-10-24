@@ -11,6 +11,9 @@
   let watchedHere = false;    // 休息开始时本 frame 是否正在播放（即“原页面”）
   let awaitingResume = false; // 休息已结束，等孩子点击“继续播放”
   let swallowUntil = 0;       // 继续播放后短暂吞掉同一次按键/点击的后续事件，避免点到播放器又把视频暂停
+  let autoFullscreen = true;  // 休息结束、继续播放时是否自动全屏
+  let wakeLock = null;        // 休息期间阻止电脑息屏的屏幕唤醒锁
+  let acquiringWakeLock = false;
   let lastTickAt = 0;
   let lastKey = null;
   let host = null;
@@ -47,6 +50,39 @@
   // 用页面路径 + 时长标识“哪一集”，网站自动连播下一集时会变化
   // 时长按分钟取整，避免加载过程中时长的细微变化被误判为换集
   const episodeKey = (v) => `${location.pathname}|${Math.round(v.duration / 60)}`;
+
+  // ---------- 屏幕唤醒锁：休息期间阻止息屏 ----------
+
+  async function acquireWakeLock() {
+    if (!isTop || wakeLock || acquiringWakeLock || !navigator.wakeLock) return;
+    acquiringWakeLock = true;
+    try {
+      const lock = await navigator.wakeLock.request('screen');
+      lock.addEventListener('release', () => {
+        if (wakeLock === lock) wakeLock = null;
+      });
+      // 请求过程中可能已经结束休息，不要留下多余的锁
+      if (!resting()) {
+        await lock.release();
+        return;
+      }
+      wakeLock = lock;
+    } catch (e) {
+      // 系统策略、电池模式或页面状态不允许时静默降级，扩展其他功能不受影响
+    } finally {
+      acquiringWakeLock = false;
+    }
+  }
+
+  function releaseWakeLock() {
+    const lock = wakeLock;
+    wakeLock = null;
+    lock?.release().catch(() => {});
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && resting()) acquireWakeLock();
+  });
 
   // ---------- 休息：暂停 + 遮罩 ----------
 
@@ -151,11 +187,22 @@
     else showResumeButton(); // 视频在 iframe 里时，顶层遮罩已取消，按钮放在 iframe 内
   }
 
+  function requestAutoFullscreen(v) {
+    if (!autoFullscreen || !v || document.fullscreenElement) return;
+    try {
+      // 必须在用户按任意键/点击的同一个事件里调用，才能满足浏览器的全屏手势要求
+      v.requestFullscreen().catch(() => {});
+    } catch (e) {
+      // 某些播放器或 iframe 会拒绝网页全屏，仍然继续正常播放
+    }
+  }
+
   function continuePlay() {
     awaitingResume = false;
     hideOverlay();
     resumeBtn?.remove();
     const v = mainVideo() || videos()[0];
+    requestAutoFullscreen(v);
     v?.play().catch(() => {});
   }
 
@@ -202,14 +249,17 @@
       awaitingResume = false;
       resumeBtn?.remove();
       enforceRest();
+      acquireWakeLock();
       if (isTop) showOverlay();
     } else if (lockedToday()) {
+      releaseWakeLock();
       awaitingResume = false;
       resumeBtn?.remove();
       enforceRest();
       pausedByUs = false;
       if (isTop) showOverlay('locked');
     } else if (prev?.phase === 'resting') {
+      releaseWakeLock();
       onRestEnd();
     } else if (prev?.phase === 'locked' && isTop) {
       hideOverlay(); // 跨天或家长重置后解除锁定
@@ -217,10 +267,15 @@
     if (isTop) updateToast();
   }
 
+  chrome.storage.sync.get({ autoFullscreen: true }).then(({ autoFullscreen: enabled }) => {
+    autoFullscreen = enabled;
+  });
+
   chrome.storage.local.get('state').then(({ state: s }) => applyState(s || { phase: 'watching' }));
   send({ type: 'refresh' }); // 让后台检查是否跨天、休息是否已结束
 
   chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'sync' && changes.autoFullscreen) autoFullscreen = changes.autoFullscreen.newValue;
     if (area === 'local' && changes.state) applyState(changes.state.newValue || { phase: 'watching' });
   });
 

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "视频观看时间管家",
-  "version": "1.4.0",
-  "description": "按观看时长提醒休息，尽量在一集结尾或开头停；休息时长按比例调整，遮罩优酷、爱奇艺、腾讯视频所有页面并倒计时，结束后按任意键继续。每天达到上限后当天不能再看。",
+  "version": "1.5.0",
+  "description": "按观看时长提醒休息，尽量在一集结尾或开头停；休息时长按比例调整并阻止息屏，遮罩优酷、爱奇艺、腾讯视频所有页面并倒计时，结束后按任意键继续并自动全屏。每天达到上限后当天不能再看。",
   "permissions": ["storage", "alarms"],
   "background": {
     "service_worker": "background.js"

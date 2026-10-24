@@ -1,7 +1,7 @@
-const DEFAULTS = { watchMin: 20, restMin: 5, graceMin: 10, dailyMaxMin: 60, dailyGraceMin: 20 };
+const DEFAULTS = { watchMin: 20, restMin: 5, graceMin: 10, dailyMaxMin: 60, dailyGraceMin: 20, autoFullscreen: true };
 const MIN_VALUE = { graceMin: 0, dailyGraceMin: 0 };
 const MAX_VALUE = { dailyMaxMin: 1440 };
-const FIELDS = Object.keys(DEFAULTS);
+const NUMBER_FIELDS = ['watchMin', 'restMin', 'graceMin', 'dailyMaxMin', 'dailyGraceMin'];
 
 const $ = (id) => document.getElementById(id);
 const fmt = (sec) => `${Math.floor(sec / 60)} 分 ${String(Math.floor(sec % 60)).padStart(2, '0')} 秒`;
@@ -13,12 +13,13 @@ function flash(text) {
 
 async function load() {
   const settings = await chrome.storage.sync.get(DEFAULTS);
-  for (const k of FIELDS) $(k).value = settings[k];
+  for (const k of NUMBER_FIELDS) $(k).value = settings[k];
+  $('autoFullscreen').checked = settings.autoFullscreen;
 }
 
 $('save').addEventListener('click', async () => {
-  const next = {};
-  for (const k of FIELDS) {
+  const next = { autoFullscreen: $('autoFullscreen').checked };
+  for (const k of NUMBER_FIELDS) {
     const min = MIN_VALUE[k] ?? 1;
     const max = MAX_VALUE[k] ?? 600;
     const n = Math.round(Number($(k).value));
